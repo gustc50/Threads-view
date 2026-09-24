@@ -92,3 +92,70 @@ def load_config() -> Config:
         max_pages=max_pages,
         search_type=search_type,
     )
+
+
+# ---------------------------------------------------------
+# Helpers usados pela interface web para persistir mudancas
+# ---------------------------------------------------------
+_ENV_KEYS = (
+    "THREADS_ACCESS_TOKEN",
+    "THREADS_APP_ID",
+    "THREADS_APP_SECRET",
+    "MAX_PAGES",
+    "SEARCH_TYPE",
+)
+
+
+def save_env(valores: dict[str, str]) -> None:
+    """
+    Grava/atualiza chaves no arquivo .env, preservando linhas nao
+    relacionadas. Recarrega o ambiente em seguida.
+    """
+    existentes: dict[str, str] = {}
+    outras_linhas: list[str] = []
+
+    if ENV_FILE.exists():
+        for linha in ENV_FILE.read_text(encoding="utf-8").splitlines():
+            crua = linha.strip()
+            if not crua or crua.startswith("#") or "=" not in crua:
+                outras_linhas.append(linha)
+                continue
+            chave, _, valor = crua.partition("=")
+            chave = chave.strip()
+            if chave in _ENV_KEYS:
+                existentes[chave] = valor
+            else:
+                outras_linhas.append(linha)
+
+    for chave, valor in valores.items():
+        if chave in _ENV_KEYS and valor is not None:
+            existentes[chave] = str(valor)
+
+    linhas = list(outras_linhas)
+    for chave in _ENV_KEYS:
+        if chave in existentes:
+            linhas.append(f"{chave}={existentes[chave]}")
+
+    ENV_FILE.write_text("\n".join(linhas) + "\n", encoding="utf-8")
+
+    # Recarrega para refletir imediatamente na mesma execucao
+    load_dotenv(dotenv_path=ENV_FILE, override=True)
+
+
+def load_keywords() -> list[str]:
+    """Le keywords.txt ignorando comentarios e linhas vazias."""
+    if not KEYWORDS_FILE.exists():
+        return []
+    palavras: list[str] = []
+    for linha in KEYWORDS_FILE.read_text(encoding="utf-8").splitlines():
+        texto = linha.strip()
+        if not texto or texto.startswith("#"):
+            continue
+        palavras.append(texto)
+    return palavras
+
+
+def save_keywords(palavras: list[str]) -> None:
+    """Grava a lista de palavras-chave (uma por linha)."""
+    linhas = [p.strip() for p in palavras if p.strip()]
+    KEYWORDS_FILE.write_text("\n".join(linhas) + "\n", encoding="utf-8")

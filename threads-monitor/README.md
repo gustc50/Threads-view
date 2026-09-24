@@ -87,7 +87,22 @@ open source
 
 ## 4. Como rodar
 
-### Linha de comando
+### Interface web local (recomendado)
+
+Abre uma página no navegador com três abas — **Configurações**, **Execução** (log ao vivo) e **Resultados** — rodando só na sua máquina (`http://127.0.0.1:5000`).
+
+- **Windows:** duplo-clique em **`run.bat`**. Na primeira execução ele cria o `.venv`, instala as dependências e abre o navegador sozinho.
+- **Linux/Mac ou linha de comando:**
+  ```bash
+  python app.py
+  ```
+  O navegador abre automaticamente. Para encerrar, use `Ctrl+C` no terminal (ou feche a janela preta no Windows).
+
+Na aba **Configurações** você cola o token da API, define tipo/páginas e as palavras-chave, e clica em **Salvar** (grava no `.env`). Na aba **Execução**, o botão **Rodar agora** dispara a coleta e mostra o progresso em tempo real. A aba **Resultados** lista os links coletados a partir de `resultados.xlsx`.
+
+> O token é gravado localmente no `.env` e nunca sai da sua máquina.
+
+### Modo terminal (opcional)
 
 ```bash
 python main.py             # usa o SEARCH_TYPE do .env (default RECENT)
@@ -95,17 +110,7 @@ python main.py --tipo TOP  # força TOP
 python main.py --tipo RECENT
 ```
 
-### Windows (script `.bat`)
-
-Dê duplo-clique em `run.bat`, ou:
-
-```bat
-run.bat
-run.bat RECENT
-run.bat TOP
-```
-
-Na **primeira execução** o `run.bat` cria automaticamente o `.venv` e instala as dependências.
+No Windows, o **`run_cli.bat`** faz o mesmo sem abrir o navegador (`run_cli.bat`, `run_cli.bat TOP`).
 
 ---
 
@@ -153,14 +158,18 @@ Cobrem:
 
 ```
 threads-monitor/
-├── main.py              # Ponto de entrada
-├── settings.py          # ABA DE CONFIGURACOES (token de teste + constantes)
+├── app.py               # Interface web (Flask) com as 3 abas
+├── templates/index.html # Pagina da interface
+├── main.py              # Ponto de entrada da CLI
+├── collector.py         # Logica de coleta (compartilhada CLI + web)
+├── settings.py          # ABA DE CONFIGURACOES + leitura/escrita de .env/keywords
 ├── threads_client.py    # Cliente HTTP da Threads API (retry, paginacao)
 ├── storage.py           # Planilha + seen_ids
 ├── refresh_token.py     # Renova o long-lived token
 ├── keywords.txt         # Lista de palavras-chave
 ├── requirements.txt
-├── run.bat              # Atalho para Windows
+├── run.bat              # Abre a interface web no navegador (Windows)
+├── run_cli.bat          # Modo terminal (Windows)
 ├── .env.example
 ├── .gitignore
 └── tests/
@@ -172,7 +181,7 @@ threads-monitor/
 
 ## 9. Primeira execução — passo a passo
 
-1. Preencha o token em `.env` **ou** em `settings.py` (bloco `ABA DE CONFIGURACOES`).
-2. Ajuste `keywords.txt`.
-3. Rode `python main.py` (ou `run.bat` no Windows).
-4. Abra `resultados.xlsx`. Da segunda execução em diante, só entram publicações novas.
+1. **Windows:** duplo-clique em `run.bat`. **Outros:** `pip install -r requirements.txt` e depois `python app.py`.
+2. O navegador abre em `http://127.0.0.1:5000`. Na aba **Configurações**, cole o token, ajuste as palavras-chave e clique em **Salvar**.
+3. Vá na aba **Execução** e clique em **Rodar agora** — acompanhe o log ao vivo.
+4. Veja os links na aba **Resultados** (também salvos em `resultados.xlsx`). Da segunda execução em diante, só entram publicações novas.

@@ -14,24 +14,11 @@ import logging
 import sys
 from pathlib import Path
 
+from collector import run_collection
 from settings import (
     KEYWORDS_FILE,
     OUTPUT_XLSX,
-    SEEN_IDS_FILE,
     load_config,
-)
-from storage import (
-    append_rows,
-    build_row,
-    filter_new_posts,
-    load_seen_ids,
-    save_seen_ids,
-)
-from threads_client import (
-    InvalidTokenError,
-    RateLimitError,
-    ThreadsAPIError,
-    search_keyword,
 )
 
 
@@ -100,43 +87,16 @@ def main(argv: list[str] | None = None) -> int:
         log.warning("keywords.txt esta vazio. Nada a fazer.")
         return 0
 
-    seen = load_seen_ids(SEEN_IDS_FILE)
-    log.info("Iniciando coleta | tipo=%s | palavras=%d | ids_ja_vistos=%d",
-             search_type, len(keywords), len(seen))
+    resumo = run_collection(
+        cfg=cfg,
+        keywords=keywords,
+        search_type=search_type,
+        log_fn=log.info,
+    )
 
-    total_novos = 0
-
-    for kw in keywords:
-        try:
-            posts = list(search_keyword(
-                keyword=kw,
-                access_token=cfg.access_token,
-                search_type=search_type,
-                max_pages=cfg.max_pages,
-            ))
-        except InvalidTokenError as exc:
-            log.error("%s", exc)
-            return 3
-        except RateLimitError as exc:
-            log.error("Rate limit persistente para '%s': %s", kw, exc)
-            continue
-        except ThreadsAPIError as exc:
-            log.error("Erro na API para '%s': %s", kw, exc)
-            continue
-
-        novos, ids_novos = filter_new_posts(posts, seen)
-        linhas = [build_row(kw, p) for p in novos]
-        append_rows(OUTPUT_XLSX, linhas)
-
-        seen |= ids_novos
-        total_novos += len(novos)
-
-        log.info("'%s': %d publicacoes novas (de %d retornadas)",
-                 kw, len(novos), len(posts))
-
-    save_seen_ids(SEEN_IDS_FILE, seen)
-    log.info("Coleta finalizada. Total de novas publicacoes: %d", total_novos)
     log.info("Planilha: %s", OUTPUT_XLSX)
+    if resumo["token_invalido"]:
+        return 3
     return 0
 
 

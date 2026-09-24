@@ -1,15 +1,14 @@
 @echo off
 REM =========================================================
-REM  Abre o monitor do Threads no navegador (interface web).
-REM  Basta dar duplo-clique neste arquivo.
-REM  A janela do navegador abre sozinha em http://127.0.0.1:5000
-REM  Feche esta janela preta (ou Ctrl+C) para encerrar o servidor.
+REM  Executa o monitor no modo TERMINAL (sem navegador).
+REM  Uso: run_cli.bat            (usa o tipo padrao do .env)
+REM       run_cli.bat RECENT
+REM       run_cli.bat TOP
 REM =========================================================
 
 setlocal
 cd /d "%~dp0"
 
-REM Cria virtualenv na primeira execucao
 if not exist ".venv\" (
     echo [setup] Criando ambiente virtual em .venv ...
     python -m venv .venv
@@ -26,13 +25,15 @@ if not exist ".venv\" (
     call ".venv\Scripts\activate.bat"
 )
 
-echo.
-echo Abrindo o Threads Monitor no navegador...
-python app.py
+if "%1"=="" (
+    python main.py
+) else (
+    python main.py --tipo %1
+)
 
 set EXITCODE=%errorlevel%
 echo.
-echo Servidor encerrado (codigo %EXITCODE%).
+echo Finalizado com codigo %EXITCODE%.
 pause
 endlocal
 exit /b %EXITCODE%

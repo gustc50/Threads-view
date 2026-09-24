@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Threads Monitor</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --card: #1a1d24;
+    --border: #2a2f3a;
+    --text: #e6e8eb;
+    --muted: #9aa2ad;
+    --accent: #5b8def;
+    --accent-hover: #4b7de0;
+    --ok: #3fb950;
+    --err: #f85149;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f5f6f8; --card: #ffffff; --border: #dfe3e8;
+      --text: #1a1d24; --muted: #5a6470; --accent: #2f6fed;
+      --accent-hover: #275fd6; --ok: #1a7f37; --err: #cf222e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.5;
+  }
+  header {
+    padding: 18px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  .tabs { display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .tab {
+    padding: 12px 16px; cursor: pointer; color: var(--muted);
+    border-bottom: 2px solid transparent; font-size: 14px; user-select: none;
+  }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+  main { padding: 20px; max-width: 900px; margin: 0 auto; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px; margin-bottom: 16px;
+  }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+  input, select, textarea {
+    width: 100%; padding: 9px 11px; border-radius: 7px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+    font-size: 14px; font-family: inherit;
+  }
+  textarea { min-height: 120px; resize: vertical; font-family: ui-monospace, monospace; }
+  .row { display: flex; gap: 14px; flex-wrap: wrap; }
+  .row > div { flex: 1; min-width: 180px; }
+  button {
+    background: var(--accent); color: #fff; border: none; border-radius: 7px;
+    padding: 10px 18px; font-size: 14px; cursor: pointer; font-weight: 600;
+  }
+  button:hover { background: var(--accent-hover); }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--border); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .status-msg { font-size: 13px; margin-top: 10px; min-height: 18px; }
+  .status-msg.ok { color: var(--ok); }
+  .status-msg.err { color: var(--err); }
+  .badge {
+    display: inline-block; padding: 2px 9px; border-radius: 20px;
+    font-size: 12px; background: var(--border); color: var(--text);
+  }
+  #log {
+    background: #000; color: #cfe3ff; border-radius: 8px; padding: 12px;
+    font-family: ui-monospace, monospace; font-size: 12.5px; height: 320px;
+    overflow-y: auto; white-space: pre-wrap; border: 1px solid var(--border);
+  }
+  #log .err { color: #ff7b72; }
+  #log .hora { color: #6ea8fe; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--card); }
+  td a { color: var(--accent); word-break: break-all; }
+  .table-wrap { max-height: 460px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Threads Monitor</h1>
+  <span class="sub">monitor local de publicacoes por palavra-chave</span>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-tab="config">Configuracoes</div>
+  <div class="tab" data-tab="run">Execucao</div>
+  <div class="tab" data-tab="results">Resultados</div>
+</div>
+
+<main>
+  <!-- ABA CONFIGURACOES -->
+  <section class="panel active" id="panel-config">
+    <div class="card">
+      <h3 style="margin-top:0">Credenciais da API</h3>
+      <label>Token de acesso (long-lived)</label>
+      <input id="access_token" type="password" placeholder="Cole aqui o codigo/token da API para o teste">
+      <div class="hint" id="token-hint">Deixe em branco para manter o token ja salvo.</div>
+
+      <div class="row">
+        <div>
+          <label>App ID (opcional, para renovar token)</label>
+          <input id="app_id" type="text" placeholder="123456789">
+        </div>
+        <div>
+          <label>App Secret (opcional)</label>
+          <input id="app_secret" type="password" placeholder="deixe em branco para manter">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">Parametros da coleta</h3>
+      <div class="row">
+        <div>
+          <label>Tipo de busca</label>
+          <select id="search_type">
+            <option value="RECENT">RECENT (mais recentes)</option>
+            <option value="TOP">TOP (em destaque)</option>
+          </select>
+        </div>
+        <div>
+          <label>Maximo de paginas por palavra</label>
+          <input id="max_pages" type="number" min="1" max="50" value="3">
+        </div>
+      </div>
+
+      <label>Palavras-chave (uma por linha)</label>
+      <textarea id="keywords" placeholder="inteligencia artificial&#10;python"></textarea>
+    </div>
+
+    <button id="btn-save">Salvar configuracoes</button>
+    <span class="status-msg" id="save-msg"></span>
+  </section>
+
+  <!-- ABA EXECUCAO -->
+  <section class="panel" id="panel-run">
+    <div class="card">
+      <div class="toolbar">
+        <button id="btn-run">Rodar agora</button>
+        <span class="badge" id="run-badge">parado</span>
+        <span class="hint" id="run-summary"></span>
+      </div>
+      <div id="log"></div>
+    </div>
+  </section>
+
+  <!-- ABA RESULTADOS -->
+  <section class="panel" id="panel-results">
+    <div class="card">
+      <div class="toolbar">
+        <button class="ghost" id="btn-refresh">Atualizar</button>
+        <span class="hint" id="results-count"></span>
+      </div>
+      <div class="table-wrap">
+        <table id="results-table">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+// ---- Abas ----
+document.querySelectorAll(".tab").forEach(t => {
+  t.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(x => x.classList.remove("active"));
+    t.classList.add("active");
+    $("panel-" + t.dataset.tab).classList.add("active");
+    if (t.dataset.tab === "results") carregarResultados();
+  });
+});
+
+// ---- Carrega config atual ----
+async function carregarConfig() {
+  const r = await fetch("/api/config");
+  const c = await r.json();
+  $("app_id").value = c.app_id || "";
+  $("max_pages").value = c.max_pages || 3;
+  $("search_type").value = c.search_type || "RECENT";
+  $("keywords").value = (c.keywords || []).join("\n");
+  if (c.tem_token) {
+    $("token-hint").textContent = "Token salvo: " + c.token_mascarado + ". Deixe em branco para manter.";
+  }
+}
+
+// ---- Salvar config ----
+$("btn-save").addEventListener("click", async () => {
+  const msg = $("save-msg");
+  msg.textContent = "Salvando..."; msg.className = "status-msg";
+  const payload = {
+    access_token: $("access_token").value,
+    app_id: $("app_id").value,
+    app_secret: $("app_secret").value,
+    max_pages: $("max_pages").value,
+    search_type: $("search_type").value,
+    keywords: $("keywords").value.split("\n").map(s => s.trim()).filter(Boolean),
+  };
+  try {
+    const r = await fetch("/api/config", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) throw new Error("falha");
+    msg.textContent = "Configuracoes salvas."; msg.className = "status-msg ok";
+    $("access_token").value = ""; $("app_secret").value = "";
+    carregarConfig();
+  } catch (e) {
+    msg.textContent = "Erro ao salvar."; msg.className = "status-msg err";
+  }
+});
+
+// ---- Execucao ----
+let poll = null;
+
+$("btn-run").addEventListener("click", async () => {
+  $("btn-run").disabled = true;
+  $("log").innerHTML = "";
+  const r = await fetch("/api/run", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ search_type: $("search_type").value }),
+  });
+  if (r.status === 409) {
+    $("btn-run").disabled = false;
+    alert("Ja existe uma coleta em andamento.");
+    return;
+  }
+  iniciarPoll();
+});
+
+function iniciarPoll() {
+  if (poll) clearInterval(poll);
+  poll = setInterval(atualizarStatus, 1000);
+  atualizarStatus();
+}
+
+async function atualizarStatus() {
+  const r = await fetch("/api/status");
+  const s = await r.json();
+  const logEl = $("log");
+  logEl.innerHTML = s.logs.map(l => {
+    const cls = l.linha.startsWith("ERRO") ? "err" : "";
+    return `<span class="hora">[${l.hora}]</span> <span class="${cls}">${escapeHtml(l.linha)}</span>`;
+  }).join("\n");
+  logEl.scrollTop = logEl.scrollHeight;
+
+  const badge = $("run-badge");
+  if (s.rodando) {
+    badge.textContent = "rodando..."; badge.style.background = "var(--accent)"; badge.style.color = "#fff";
+    $("btn-run").disabled = true;
+  } else {
+    badge.textContent = "parado"; badge.style.background = "var(--border)"; badge.style.color = "var(--text)";
+    $("btn-run").disabled = false;
+    if (poll) { clearInterval(poll); poll = null; }
+    if (s.resumo) {
+      $("run-summary").textContent =
+        `Total de novas: ${s.resumo.total_novos}` +
+        (s.resumo.erros.length ? ` | erros: ${s.resumo.erros.length}` : "");
+      carregarResultados();
+    }
+  }
+}
+
+// ---- Resultados ----
+async function carregarResultados() {
+  const r = await fetch("/api/results");
+  const d = await r.json();
+  const thead = $("results-table").querySelector("thead");
+  const tbody = $("results-table").querySelector("tbody");
+  thead.innerHTML = "<tr>" + d.colunas.map(c => `<th>${c}</th>`).join("") + "</tr>";
+  const linkIdx = d.colunas.indexOf("link");
+  tbody.innerHTML = d.linhas.map(row =>
+    "<tr>" + row.map((cel, i) => {
+      if (i === linkIdx && cel) {
+        return `<td><a href="${escapeAttr(cel)}" target="_blank" rel="noopener">${escapeHtml(cel)}</a></td>`;
+      }
+      return `<td>${escapeHtml(cel)}</td>`;
+    }).join("") + "</tr>"
+  ).join("");
+  $("results-count").textContent = `${d.linhas.length} publicacoes na planilha`;
+}
+
+$("btn-refresh").addEventListener("click", carregarResultados);
+
+// ---- util ----
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => (
+    {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]
+  ));
+}
+function escapeAttr(s) { return escapeHtml(s).replace(/`/g, "&#96;"); }
+
+carregarConfig();
+</script>
+</body>
+</html>

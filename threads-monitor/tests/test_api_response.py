@@ -130,8 +130,44 @@ def test_rate_limit_persistente_lanca_excecao(monkeypatch):
         ))
 
 
-def test_erro_http_generico_e_propagado():
-    sess = _sessao_mock([FakeResponse(500, {"error": {"message": "boom"}})])
+def test_erro_transitorio_faz_retry_e_recupera(monkeypatch):
+    # code 1 "An unknown error occurred" deve ser tratado como transitorio
+    monkeypatch.setattr(threads_client, "_sleep", lambda s: None)
+
+    respostas = [
+        FakeResponse(500, {"error": {"code": 1, "message": "An unknown error occurred"}}),
+        FakeResponse(200, {"data": [{"id": "99"}]}),
+    ]
+    sess = _sessao_mock(respostas)
+
+    resultado = list(search_keyword(
+        keyword="x",
+        access_token="fake",
+        max_pages=1,
+        session=sess,
+    ))
+
+    assert [p["id"] for p in resultado] == ["99"]
+    assert sess.get.call_count == 2
+
+
+def test_erro_transitorio_persistente_lanca_excecao(monkeypatch):
+    monkeypatch.setattr(threads_client, "_sleep", lambda s: None)
+
+    respostas = [FakeResponse(500, {"error": {"code": 1}})] * 3
+    sess = _sessao_mock(respostas)
+
+    with pytest.raises(ThreadsAPIError):
+        list(search_keyword(
+            keyword="x",
+            access_token="fake",
+            max_pages=1,
+            session=sess,
+        ))
+
+
+def test_erro_http_400_generico_e_propagado():
+    sess = _sessao_mock([FakeResponse(400, {"error": {"code": 100, "message": "boom"}})])
 
     with pytest.raises(ThreadsAPIError):
         list(search_keyword(

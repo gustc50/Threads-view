@@ -62,6 +62,19 @@ def _is_invalid_token(status_code: int, payload: dict) -> bool:
     return err.get("code") == 190 or "OAuthException" in str(err.get("type", ""))
 
 
+# Codigos "transitorios" da Meta: erro desconhecido/temporario do servidor.
+# code=1 ("An unknown error occurred") e code=2 costumam ser instaveis e
+# somem ao tentar de novo.
+TRANSIENT_CODES = {1, 2}
+
+
+def _is_transient(status_code: int, payload: dict) -> bool:
+    if 500 <= status_code <= 599:
+        return True
+    err = (payload or {}).get("error", {})
+    return err.get("code") in TRANSIENT_CODES
+
+
 def _do_request(
     url: str,
     params: dict | None,
@@ -100,6 +113,23 @@ def _do_request(
             )
             _sleep(wait)
             last_error = RateLimitError(str(payload))
+            continue
+
+        if _is_transient(resp.status_code, payload):
+            wait = 2 ** attempt  # 2s, 4s, 8s
+            log.warning(
+                "Erro temporario da API (status=%s, %s). Tentativa %d/%d. "
+                "Aguardando %ds...",
+                resp.status_code, payload, attempt, MAX_RETRIES, wait,
+            )
+            _sleep(wait)
+            last_error = ThreadsAPIError(
+                "Erro temporario da Meta (code 1 / 'An unknown error occurred'). "
+                "Costuma ser instabilidade momentanea do endpoint de busca. "
+                "Se persistir, verifique se o app ja foi APROVADO na App Review "
+                "para a permissao 'threads_keyword_search' (sem aprovacao, a busca "
+                "so retorna posts da sua propria conta)."
+            )
             continue
 
         if resp.status_code >= 400:

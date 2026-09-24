@@ -22,6 +22,7 @@ from flask import Flask, jsonify, render_template, request
 from openpyxl import load_workbook
 
 from collector import run_collection
+from diagnostico import rodar_diagnostico
 from settings import (
     OUTPUT_XLSX,
     load_config,
@@ -122,6 +123,13 @@ def post_config():
         save_keywords(dados["keywords"])
 
     return jsonify({"ok": True})
+
+
+@app.route("/api/diagnostico", methods=["POST"])
+def diagnostico():
+    cfg = load_config()
+    etapas = rodar_diagnostico(cfg.access_token)
+    return jsonify({"etapas": etapas})
 
 
 @app.route("/api/run", methods=["POST"])

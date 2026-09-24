@@ -156,7 +156,14 @@
     </div>
 
     <button id="btn-save">Salvar configuracoes</button>
+    <button class="ghost" id="btn-diag">Testar token / diagnostico</button>
     <span class="status-msg" id="save-msg"></span>
+
+    <div class="card" id="diag-card" style="display:none; margin-top:16px">
+      <h3 style="margin-top:0">Diagnostico da conexao</h3>
+      <div class="hint">Testa o token em etapas e mostra o erro cru da Meta (util para o code 1).</div>
+      <div id="diag-out"></div>
+    </div>
   </section>
 
   <!-- ABA EXECUCAO -->
@@ -262,6 +269,55 @@ $("btn-save").addEventListener("click", async () => {
     msg.textContent = "Erro ao salvar."; msg.className = "status-msg err";
   }
 });
+
+// ---- Diagnostico ----
+$("btn-diag").addEventListener("click", async () => {
+  const card = $("diag-card");
+  const out = $("diag-out");
+  card.style.display = "block";
+  out.innerHTML = "<div class='hint'>Rodando testes...</div>";
+  try {
+    const r = await fetch("/api/diagnostico", { method: "POST" });
+    const d = await r.json();
+    out.innerHTML = d.etapas.map(e => {
+      const res = e.resultado;
+      const ok = res.ok;
+      const cor = ok ? "var(--ok)" : "var(--err)";
+      const marca = ok ? "✓" : "✗";
+      const corpo = res.erro_rede
+        ? ("Erro de rede: " + res.erro_rede)
+        : JSON.stringify(res.resposta, null, 2);
+      return `<div style="margin:10px 0; padding:10px; border:1px solid var(--border); border-radius:8px">
+        <div style="color:${cor}; font-weight:600">${marca} ${escapeHtml(e.titulo)}
+          <span class="hint">(HTTP ${res.status === null ? "-" : res.status})</span></div>
+        <pre style="white-space:pre-wrap; font-size:12px; margin:6px 0 0; color:var(--muted)">${escapeHtml(corpo)}</pre>
+      </div>`;
+    }).join("") + "<div class='hint' id='diag-verdict'></div>";
+    interpretarDiag(d.etapas);
+  } catch (e) {
+    out.innerHTML = "<div class='status-msg err'>Falha ao rodar o diagnostico.</div>";
+  }
+});
+
+function interpretarDiag(etapas) {
+  const v = document.getElementById("diag-verdict");
+  if (!v) return;
+  const perfil = etapas[0]?.resultado;
+  const buscas = etapas.slice(1);
+  const algumaBuscaOk = buscas.some(e => e.resultado.ok);
+  let msg = "";
+  if (perfil && !perfil.ok) {
+    msg = "⚠ O teste 1 falhou: o token nao e valido ou nao tem threads_basic. Gere um novo token.";
+  } else if (algumaBuscaOk) {
+    msg = "✓ A busca funciona! Se veio vazio, e porque no acesso padrao so retorna SEUS proprios posts. Publique um post com a palavra e teste.";
+  } else {
+    msg = "⚠ Perfil OK, mas TODAS as buscas falharam. Provavel: o token nao carrega a permissao threads_keyword_search (gere um token novo marcando essa permissao), ou o app ainda nao tem acesso a busca. Veja o erro cru acima (error_subcode/message).";
+  }
+  v.textContent = msg;
+  v.style.color = "var(--text)";
+  v.style.fontWeight = "600";
+  v.style.marginTop = "10px";
+}
 
 // ---- Execucao ----
 let poll = null;

@@ -1,0 +1,5 @@
+# Uma palavra-chave por linha. Linhas iniciadas com # sao comentarios.
+# Exemplos (edite a vontade):
+inteligencia artificial
+python
+open source

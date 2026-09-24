@@ -1,0 +1,21 @@
+# Segredos e dados sensíveis
+.env
+
+# Saída da coleta
+resultados.xlsx
+seen_ids.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
